@@ -1,0 +1,245 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import random   # For random number generation
+
+class Graph:
+    def __init__(self):
+        self.adj_list = {}   # {vertex: [neighbours]}
+
+    def add_vertex(self, vertex):
+        if vertex not in self.adj_list:
+            self.adj_list[vertex] = []
+
+    def add_edge(self, vertex1, vertex2, value=0):
+        if vertex1 in self.adj_list and vertex2 in self.adj_list:
+            self.adj_list[vertex1].append((vertex2, value))
+            self.adj_list[vertex2].append((vertex1, value))  # Comment this line for a directed graph
+
+    def display(self):
+        for vertex in self.adj_list:
+            neighbors = [neighbor for (neighbor, value) in self.adj_list[vertex]]
+            print(f"{vertex}: {neighbors}")
+            # print(f"{vertex}: {self.adj_list[vertex]}")
+
+class LDPCEncoder:
+    # Initialize LDPC Encoder with parameters
+    # n: number of variable nodes (or codeword length)
+    # dv: degree of each variable node
+    # dc: degree of each check node
+    def __init__(self, n: int, dv: int, dc: int):
+        # Calculate number of check nodes and check if it is integer
+        self.m: int = n * dv // dc  # number of check nodes
+        if n * dv % dc != 0:
+            print("Invalid parameters: m must be an integer")
+            return
+        
+        # Parameters
+        self.n: int = n
+        self.dv: int = dv
+        self.dc: int = dc
+
+        # Tanner Graph
+        self.generate_tanner_graph()
+
+        # G matrix
+        self.G = self.generateG() # generator matrix
+
+        # Define the type of modulation (Here we are using BPSK with symbols +1 for bit=0 and -1 for bit=1)
+        self.Eb = 1
+        self.symbol0 = 1
+        self.symbol1 = -1
+
+    def generateG(self):
+        G = np.zeros((self.n - self.m, self.n), dtype=int)
+        return G
+
+    # Generate Tanner graph
+    # From idx 0 to n-1: variable nodes
+    # From idx n to n+m-1: check nodes
+    def generate_tanner_graph(self):
+        redo = True
+        while (redo):
+            redo = False
+            # Create the graph and Add vertices for variable and check nodes
+            self.graph = Graph()
+            for i in range(self.n + self.m):
+                self.graph.add_vertex(i)
+                
+            # Initialize check nodes and their usage count
+            check_nodes = [i + self.n for i in range(self.m)]
+            check_nodes_count = {node: 0 for node in check_nodes}
+
+            # Connect variable nodes to check nodes
+            for variable_node in range(self.n):
+                if not check_nodes:
+                    break
+
+                check_nodes_copy = check_nodes.copy()
+
+                for _ in range(self.dv):
+                    # Choose a random check node between the ones available on the copy list of check nodes
+                    if (len(check_nodes_copy) == 0):
+                        redo = True
+                        break
+                    idx = random.randint(0, len(check_nodes_copy)-1)
+                    current_check_node = check_nodes_copy[idx]
+
+                    # Add edge between variable node and check node
+                    self.graph.add_edge(variable_node, current_check_node)
+                    # Finally pop the idx used for the current_check_node
+                    check_nodes_copy.pop(idx)
+
+                    # Update check node count and remove it from the original list if it reaches dc
+                    check_nodes_count[current_check_node] += 1
+                    if check_nodes_count[current_check_node] == self.dc:
+                        check_nodes.remove(current_check_node)
+                        check_nodes_count.pop(current_check_node)
+
+    # Encode function (encode bits using generator matrix G)
+    # message.shape should be (1, n-m)
+    def encode(self, message):
+        return message @ self.G % 2 # Return shape should be (1, n)
+    
+    # Convert bits to BPSK symbols using NumPy's vectorized operations
+    # +1 for bit 0 and -1 for bit 1
+    # encoded_message.shape should be (1, n)
+    def encode_message_to_symbols(self, encoded_message):
+        return np.where(encoded_message == 0, self.symbol0, self.symbol1)    # Returned shape should be (1, n)
+
+    # Decode function
+    # received is a vector that represents a group of self.n bits
+    def decode(self, received):
+        decoded = received.copy()
+
+        max_iterations = 0
+        while max_iterations <= 10:
+            # Initialize arrays correctly
+            parity_checks = np.zeros(self.m, dtype=bool)    # Boolean array of size m
+            var_nodes_counter = np.zeros(self.n, dtype=int) # Integer array of size n
+
+            max_value = 0
+            
+            # Calculate parity checks
+            for i in range(self.m):
+                # Compute parity checks based on adjacency list in the Tanner graph
+                # Here, make sure the indices are within the bounds of the decoded array
+                parity_checks[i] = (sum(decoded[0, node] for node in self.graph.adj_list[i + self.n]) % 2) == 0
+
+                if not parity_checks[i]:
+                    for node in self.graph.adj_list[i + self.n]:
+                        var_nodes_counter[node] += 1
+                        if var_nodes_counter[node] > max_value:
+                            max_value = var_nodes_counter[node]
+            
+            # Stop if don't have more bits to flip
+            if max_value == 0:
+                break
+
+            # Bit flip
+            for i in range(self.n):
+                if var_nodes_counter[i] == max_value:
+                    decoded[0, i] = (decoded[0, i] + 1) % 2
+
+            max_iterations += 1
+
+        return decoded
+
+
+# Gaussian Channel class
+class GaussianChannel:
+    # Initialize Gaussian Channel with parameters
+    # Eb_N0_dB: Energy per bit to noise power spectral density ratio in dB
+    def __init__(self, Eb_N0_dB, Eb):
+        self.Eb_N0_dB = Eb_N0_dB                    # Energy per bit to noise power spectral density ratio
+        self.Eb_N0 = 10**(Eb_N0_dB / 10)            # Convert dB to linear scale (Eb/N0 = 10^(Eb/N0_dB/10))
+        self.Eb = Eb                                # Energy per bit
+        self.N0 = self.Eb / self.Eb_N0              # Noise power spectral density (N0 = Eb / Eb/N0)
+        self.sigma = np.sqrt(self.N0 / 2)           # Standard deviation of noise (sigma = sqrt(1 / (2 * Eb/N0)))
+    
+    # Transmit function
+    # encoded_symbols is a vector that represents a group of self.n symbols
+    # encoded_symbols.shape = (1, n)
+    def transmit(self, encoded_symbols):
+        noise = np.random.normal(0, self.sigma, encoded_symbols.shape)      # Generate Gaussian noise with mean 0 and standard deviation sigma
+        received_symbols = encoded_symbols + noise                          # Add noise to the codeword to get the received signal
+        return received_symbols
+
+    # Calculate LLR function
+    # received is a vector that represents a group of self.n bits
+    def calculate_llr(self, received):
+        llr = 2 * received / self.sigma**2  # Log-likelihood ratio
+        return llr
+
+
+# Generate a 0's x-bits message
+def generateInformationBits(x):
+    # return np.random.randint(0, 2, x).astype(int).reshape(1,x)
+    return np.zeros(x, dtype=int).reshape(1, x)
+
+# Simulate and Compare methods for different values of p    
+def simulate(x_info_bits, Eb_N0_dBs):
+    # Generate message with x_info_bits
+    message = generateInformationBits(x_info_bits)
+
+    # Case 1: LDPC with n = 98
+    n1 = 98             # codeword length (number of v-nodes)
+    m1 = n1 * 3 // 7    # number of check nodes (nuber of c-nodes)
+    ldpc_encoder1 = LDPCEncoder(n1, 3, 7)   # n, dv, dc
+    ldpc_encoder1.graph.display()
+    x1_info_bits = message.shape[1]-(message.shape[1] % (n1-m1))    # n-m bitys = k bits = number of information bits. We are truncating the message to be a multiple of n-m
+    encoded_blocks1 = ldpc_encoder1.encode([message[:, i:i+n1-m1] for i in range(0, x1_info_bits, n1-m1)])
+    encoded_symbols1 = ldpc_encoder1.encode_message_to_symbols(encoded_blocks1)
+    print("encoded_symbols1.shape: ", encoded_symbols1.shape)
+
+    # Declaring the necessary variables to store the final message and error rates
+    error_rates1 = []
+    
+    # Transmit each block through the channel for different values of p
+    print("\nTRANSMISSION THROUGH GAUSSIAN CHANNEL\n")
+    for i in range(0, len(Eb_N0_dBs)):
+        print("\n\tEb/N0 (dB) = ", Eb_N0_dBs[i], "\n")
+        channel1 = GaussianChannel(Eb_N0_dBs[i], ldpc_encoder1.Eb)
+
+        # Initialize the necessary np arrays to store the received symbols
+        received_symbols1 = np.empty((1, 0), dtype=int)
+
+        # Case 1 - Transmit the encoded symbols 1 through the channel (all at once)
+        received_symbols1 = channel1.transmit(encoded_symbols1)
+        print("received_symbols1.shape: ", received_symbols1.shape)
+
+        # Decode the received blocks for each case
+        for j in range(0, len(encoded_symbols1)):
+            decoded1 = ldpc_encoder1.decode(received_symbols1[j, :, :]) # has shape (1, n1)
+            relevant_bits1 = decoded1[:, :n1-m1]
+            final_message1 = np.concatenate((final_message1, relevant_bits1), axis=1)
+
+        # Calculate the number of different bits for each case
+        # Case 1
+        bit_errors1 = np.sum(message[0, :x1_info_bits] != final_message1[0,:])
+        error_rate1 = bit_errors1 / x1_info_bits
+        error_rates1.append(error_rate1)
+        print("Error rate1: ", error_rate1)
+
+
+    # Plot the error rates
+    plt.figure(figsize=(10, 6))
+    plt.plot(Eb_N0_dBs, error_rates1, 'g-o', label='LDPC Code (n = 98)')
+    plt.scatter(Eb_N0_dBs, error_rates1, color='red')  # mark each point
+    plt.xlabel('Probability of bit flip (p)')
+    plt.ylabel('Error Rate')
+    plt.title('Error Rate vs. Channel Noise for Different Coding Schemes')
+    plt.xscale('log')
+    plt.xticks(Eb_N0_dBs, labels=[str(x) for x in Eb_N0_dBs])
+    plt.xlim(max(Eb_N0_dBs), min(Eb_N0_dBs))  # Invert the x-axis to show the values in ascending order
+    plt.yscale('log')
+    plt.yticks([2, 1.5, 1, 0.5, 0, -0.5, -1], labels=['2', '1.5', '1', '0.5', '0', '-0.5', '-1'])
+    plt.ylim(1e-6, 1e-1)
+    plt.legend(title="Legend", title_fontsize='13', fontsize='11')  # Add a title to the legend for clarity
+    plt.grid(True)
+    plt.show()
+
+def main():
+    simulate(x_info_bits=100000, Eb_N0_dBs = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5])
+
+if __name__ == "__main__":
+    main()
