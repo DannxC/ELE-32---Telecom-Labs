@@ -356,7 +356,7 @@ def simulate(x_info_bits, Eb_N0_dBs):
     plt.scatter(Eb_N0_dBs, error_rates1, color='red')  # mark each point
     plt.xlabel('Eb/N0 (dB)')
     plt.ylabel('Error Rate')
-    plt.title('Error Rate vs. Eb/N0 for LDPC Codes (n = 1001)')
+    plt.title('Error Rate vs. Eb/N0 for LDPC Code (n = 1001)')
     plt.xticks(Eb_N0_dBs, labels=[str(x) for x in Eb_N0_dBs])
     plt.xlim(min(Eb_N0_dBs), max(Eb_N0_dBs))
     plt.yscale('log')
@@ -368,7 +368,7 @@ def simulate(x_info_bits, Eb_N0_dBs):
     plt.show()
 
 def main():
-    simulate(x_info_bits=10000, Eb_N0_dBs = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5])
+    simulate(x_info_bits=100000, Eb_N0_dBs = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5])
 
 if __name__ == "__main__":
     main()
