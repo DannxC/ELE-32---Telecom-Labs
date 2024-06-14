@@ -232,6 +232,7 @@ def generateInformationBits(x):
 def simulate(x_info_bits, p):
     # Generate message with x_info_bits
     message = generateInformationBits(x_info_bits)
+    print("Message shape: ", message.shape)
 
     # Case 0: HammingCode (7, 4)
     # Parameters
@@ -342,10 +343,12 @@ def simulate(x_info_bits, p):
         print("Error rate0: ", error_rate0)
 
         # Case 1
+        print("\n\nfinal_message1: ", final_message1.shape)
+        print("message: ", message.shape)
         bit_errors1 = np.sum(message[0, :x1_info_bits] != final_message1[0,:])
         error_rate1 = bit_errors1 / x1_info_bits
         error_rates1.append(error_rate1)
-        print("Error rate1: ", error_rate1)
+        print("\nError rate1: ", error_rate1)
 
         # Case 2
         bit_errors2 = np.sum(message[0, :x2_info_bits] != final_message2[0,:])
@@ -388,7 +391,7 @@ def simulate(x_info_bits, p):
     plt.show()
 
 def main():
-    simulate(x_info_bits=1000000, p=[0.00001, 0.00002, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5])
+    simulate(x_info_bits=100000, p=[0.00001, 0.00002, 0.00005, 0.0001, 0.0002, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5])
 
 if __name__ == "__main__":
     main()
