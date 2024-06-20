@@ -3,6 +3,8 @@ import csv
 import numpy as np
 import matplotlib.pyplot as plt
 import random   # For random number generation
+from multiprocessing import Pool
+
 
 class Graph:
     def __init__(self):
@@ -369,8 +371,103 @@ def simulate(x_info_bits, Eb_N0_dBs):
     save_plot_with_unique_name(x_info_bits)  # Altere conforme necessário para o seu caso
     plt.show()
 
+# Simulate and Compare methods for different values of p using parallelism
+def simulate_parallel(x_info_bits, Eb_N0_dBs, process_count):
+    # Generate message with x_info_bits
+    message = generateInformationBits(x_info_bits)
+    print("message.shape: ", message.shape)
+
+
+    # Case 1: LDPC with n = 98
+    n1 = 1001               # codeword length (number of v-nodes)
+    m1 = n1 * 3 // 7        # number of check nodes (nuber of c-nodes)
+    ldpc_encoder1 = LDPCEncoder(n1, 3, 7)   # n, dv, dc
+    ldpc_encoder1.graph.display()
+    ldpc_encoder1.graph.save_to_csv("tanner_graph1.csv")
+    x1_info_bits = message.shape[1]-(message.shape[1] % (n1-m1))
+    encoded_blocks1 = ldpc_encoder1.encode([message[:, i:i+n1-m1] for i in range(0, x1_info_bits, n1-m1)])
+    encoded_symbols1 = ldpc_encoder1.encode_message_to_symbols(encoded_blocks1)
+    print("encoded_symbols1.shape: ", encoded_symbols1.shape)
+
+
+    # SIMULATE CASE 1
+    # Create a pool of processes (parallelism)
+    with Pool(process_count) as pool:
+        # Create a partial function that all processes can use
+        results = pool.map(simulate_single, [(message, Eb_N0_dB, ldpc_encoder1, x1_info_bits, encoded_symbols1, n1, m1) for Eb_N0_dB in Eb_N0_dBs])
+    
+    error_rates1 = [result for result in results]   # here assuming only one result per process
+
+    # SIMULATE CASE 2
+    # etc...
+
+
+    # Plot the error rates
+    plt.figure(figsize=(10, 6))
+    plt.plot(Eb_N0_dBs, error_rates1, 'g-o', label='LDPC Code (n = 1001)')
+    plt.scatter(Eb_N0_dBs, error_rates1, color='red')  # mark each point
+    plt.xlabel('Eb/N0 (dB)')
+    plt.ylabel('Error Rate')
+    plt.title('Error Rate vs. Eb/N0 for LDPC Code (n = 1001)')
+    plt.xticks(Eb_N0_dBs, labels=[str(x) for x in Eb_N0_dBs])
+    plt.xlim(min(Eb_N0_dBs), max(Eb_N0_dBs))
+    plt.yscale('log')
+    plt.yticks([1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6], labels=['1e-1', '1e-2', '1e-3', '1e-4', '1e-5', '1e-6'])
+    plt.ylim(1e-6, 1e-1)
+    plt.legend(title="Legend", title_fontsize='13', fontsize='11')  # Add a title to the legend for clarity
+    plt.grid(True)
+    save_plot_with_unique_name(x_info_bits)  # Altere conforme necessário para o seu caso
+    plt.show()
+
+# Simulate and Compare methods for different values of Eb_N0_db using parallelism
+def simulate_single(args):
+    message, Eb_N0_dB, ldpc_encoder1, x1_info_bits, encoded_symbols1, n1, m1 = args
+
+    # Declaring the necessary variables to store the final message and error rates
+    error_rates1 = []
+    
+    # Transmit each block through the channel for different values of p
+    print("\nTRANSMISSION THROUGH GAUSSIAN CHANNEL\n")
+
+    print("\n\tEb/N0 (dB) = ", Eb_N0_dB, "\n")
+    channel1 = GaussianChannel(Eb_N0_dB, ldpc_encoder1.Eb)
+
+    # Initialize the necessary np arrays to store the received symbols
+    received_symbols1 = np.empty((1, 0), dtype=int)
+    final_message1 = np.empty((1, 0), dtype=int)
+
+    # Case 1 - Transmit the encoded symbols 1 through the channel (all at once)
+    received_symbols1 = channel1.transmit(encoded_symbols1)
+    received_llr1 = channel1.calculate_llr(received_symbols1)
+
+    # print("received_llr1.shape: ", received_llr1.shape)
+    print(received_llr1[0, :, :10])
+
+    # Decode the received blocks for each case
+    for j in range(0, encoded_symbols1.shape[0]):
+        decoded_message1 = ldpc_encoder1.decode(received_llr1[j, :, :])     # input has shape (1, n1), and output too (but now represent bits)
+        relevant_bits1 = decoded_message1[:, :n1-m1]
+        # print("\ndecoded_message1.shape: ", decoded_message1.shape)
+        # print("relevant_bits1.shape: ", relevant_bits1.shape)
+        final_message1 = np.concatenate((final_message1, relevant_bits1), axis=1)
+
+    # print("\n\nfinal_message1.shape: ", final_message1.shape)
+    # print(final_message1[0, :10])
+
+    # Calculate the number of different bits for each case
+    # Case 1
+    bit_errors1 = np.sum(message[0, :x1_info_bits] != final_message1[0,:])
+    error_rate1 = bit_errors1 / x1_info_bits
+    error_rates1.append(error_rate1)
+    print("Error rate1: ", error_rate1)
+
+    return error_rate1
+
+
 def main():
-    simulate(x_info_bits=100000, Eb_N0_dBs = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5])
+    # simulate(x_info_bits=100000, Eb_N0_dBs = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5])
+    simulate_parallel(x_info_bits=1000000, Eb_N0_dBs=[0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5], process_count=8)
+
 
 if __name__ == "__main__":
     main()
