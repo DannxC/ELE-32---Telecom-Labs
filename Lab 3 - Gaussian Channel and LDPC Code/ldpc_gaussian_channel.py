@@ -127,10 +127,10 @@ class LDPCEncoder:
     # Decode function
     # received is a vector that represents a group of self.n symbols
     # received.shape should be (1, n)
-    def decode(self, received_symbols):
-        # Verifica se received_symbols tem a forma esperada
-        if received_symbols.shape != (1, self.n):
-            raise ValueError("received_symbols deve ter a forma (1, n)")
+    def decode(self, received_llr):
+        # Verifica se received_llr tem a forma esperada
+        if received_llr.shape != (1, self.n):
+            raise ValueError("received_llr deve ter a forma (1, n)")
     
         # Set each value on edges for 0
         for v_node in range(self.n):
@@ -138,14 +138,14 @@ class LDPCEncoder:
                 self.graph.att_edge_value(v_node, edge[0], 0)
 
         # Initialize the message to be decoded
-        decoded_symbols = received_symbols.copy()
+        decoded_llr = received_llr.copy()
 
         max_iterations = 0
         while max_iterations <= 10:
             # Calculate v-nodes
             for v_node in range(self.n):
                 # Calculate the sum of all incoming messages to the v-node
-                sum_incoming = received_symbols[0, v_node] + sum([edge[1] for edge in self.graph.adj_list[v_node]])
+                sum_incoming = received_llr[0, v_node] + sum([edge[1] for edge in self.graph.adj_list[v_node]])
                 # Update the message in the graph for each edge
                 for edge in self.graph.adj_list[v_node]:
                     self.graph.att_edge_value(v_node, edge[0], sum_incoming - edge[1])
@@ -196,15 +196,15 @@ class LDPCEncoder:
 
         # Calculate the decoded symbols
         for v_node in range(self.n):
-            decoded_symbols[0, v_node] += sum([edge[1] for edge in self.graph.adj_list[v_node]])
+            decoded_llr[0, v_node] += sum([edge[1] for edge in self.graph.adj_list[v_node]])
 
-        # print("decoded_symbols.shape: ", decoded_symbols.shape)
-        # print(decoded_symbols[0, :10])
+        # print("decoded_llr.shape: ", decoded_llr.shape)
+        # print(decoded_llr[0, :10])
 
         # Calculate the final message (bits) from the decoded symbols
         decoded_message = np.empty((1, self.n), dtype=int)
         for i in range(self.n):
-            decoded_message[0, i] = 0 if decoded_symbols[0, i] >= 0 else 1
+            decoded_message[0, i] = 0 if decoded_llr[0, i] >= 0 else 1
 
         # print("decoded_message.shape: ", decoded_message.shape)
         # print(decoded_message[0, :10])
@@ -328,12 +328,14 @@ def simulate(x_info_bits, Eb_N0_dBs):
 
         # Case 1 - Transmit the encoded symbols 1 through the channel (all at once)
         received_symbols1 = channel1.transmit(encoded_symbols1)
-        # print("received_symbols1.shape: ", received_symbols1.shape)
-        print(received_symbols1[0, :, :10])
+        received_llr1 = channel1.calculate_llr(received_symbols1)
+
+        # print("received_llr1.shape: ", received_llr1.shape)
+        print(received_llr1[0, :, :10])
 
         # Decode the received blocks for each case
         for j in range(0, encoded_symbols1.shape[0]):
-            decoded_message1 = ldpc_encoder1.decode(received_symbols1[j, :, :])     # input has shape (1, n1), and output too (but now represent bits)
+            decoded_message1 = ldpc_encoder1.decode(received_llr1[j, :, :])     # input has shape (1, n1), and output too (but now represent bits)
             relevant_bits1 = decoded_message1[:, :n1-m1]
             # print("\ndecoded_message1.shape: ", decoded_message1.shape)
             # print("relevant_bits1.shape: ", relevant_bits1.shape)
