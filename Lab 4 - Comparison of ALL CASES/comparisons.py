@@ -610,7 +610,7 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
     # CASE 1: LDPC with LLR algorithm and with n = 1001
     n1 = 1001               # codeword length (number of v-nodes)
     m1 = n1 * 3 // 7        # number of check nodes (nuber of c-nodes)
-    Eb_N0_dBs = list(map(lambda x: x * (7/10), Ei_N0_dBs))
+    Eb_N0_dBs = Ei_N0_dBs - 10 * np.log10(10 / 7)  # Conversão para Eb/N0
     ldpc_encoder1 = LDPCEncoderWithLLR(n1, 3, 7)   # n, dv, dc
     # ldpc_encoder1.graph.display()
     # ldpc_encoder1.graph.save_to_csv("tanner_graph1.csv")
@@ -631,6 +631,12 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
     print("encoded_blocks2.shape: ", encoded_blocks2.shape)
 
 
+    # CASE 3: Hamming with n = 7 and k = 4
+    # Parameters
+    n3 = 7 # length of codeword
+    k3 = 4 # length of message
+    hamming_encoder = HammingEncoder(n3, k3)
+    encoded_blocks3 = hamming_encoder.encode([message[:, i:i+k3] for i in range(0, message.shape[1], k3)])
 
 
     # SIMULATE CASE 1
@@ -642,7 +648,6 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
     error_rates1 = [result for result in results]   # here assuming only one result per process
 
 
-    # CASE 2
     # SIMULATE CASE 2
     with Pool(process_count) as pool:
         # Create a partial function that all processes can use
@@ -678,7 +683,7 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
 
 
 def main():
-    simulate_parallel(x_info_bits=100000, Ei_N0_dBs=[0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5], process_count=8)
+    simulate_parallel(x_info_bits=100000, Ei_N0_dBs=[0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6.0, 6.5, 7.0], process_count=8)
 
 
 if __name__ == "__main__":
