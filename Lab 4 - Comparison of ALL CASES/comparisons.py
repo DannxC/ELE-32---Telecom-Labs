@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random   # For random number generation
 from multiprocessing import Pool
+import time
 
 # Graph with adjacency list representation
 class Graph:
@@ -41,13 +42,13 @@ class Graph:
                 csv_writer.writerow(neighbors)
 
 
-# Contains the encode and decode functions for LDPC codes (this case uses the LLR algorithm for decoding)
+# Contains the encode and decode functions for LDPC codes (this case uses the LLR algorithm for decoding) (LAB 3)
 class LDPCEncoderWithLLR:
     # Initialize LDPC Encoder with parameters
     # n: number of variable nodes (or codeword length)
     # dv: degree of each variable node
     # dc: degree of each check node
-    def __init__(self, n: int, dv: int, dc: int):
+    def __init__(self, n: int, dv: int, dc: int, max_iterations=10):
         # Calculate number of check nodes and check if it is integer
         self.m: int = n * dv // dc  # number of check nodes
         if n * dv % dc != 0:
@@ -58,6 +59,8 @@ class LDPCEncoderWithLLR:
         self.n: int = n
         self.dv: int = dv
         self.dc: int = dc
+
+        self.max_iterations = max_iterations
 
         # Tanner Graph
         self.generate_tanner_graph()
@@ -138,13 +141,13 @@ class LDPCEncoderWithLLR:
         # Set each value on edges for 0
         for v_node in range(self.n):
             for edge in self.graph.adj_list[v_node]:
-                self.graph.att_edge_value(v_node, edge[0], 0)
+                self.graph.att_edge_value(v_node, edge[0], received_llr[0, v_node] / 2)
 
         # Initialize the message to be decoded
         decoded_llr = received_llr.copy()
 
-        max_iterations = 0
-        while max_iterations <= 10:
+        iteration = 0
+        while iteration < self.max_iterations:
             # Calculate v-nodes
             for v_node in range(self.n):
                 # Calculate the sum of all incoming messages to the v-node
@@ -194,7 +197,7 @@ class LDPCEncoderWithLLR:
                     else:
                         self.graph.att_edge_value(c_node, edge[0], actual_sign * min1)
 
-            max_iterations += 1
+            iteration += 1
 
 
         # Calculate the decoded symbols
@@ -236,7 +239,7 @@ class LDPCEncoderWithLLR:
         return min1, min2
 
 
-# Contains the encode and decode functions for LDPC codes (this case uses the Bit-Flip algorithm for decoding)
+# Contains the encode and decode functions for LDPC codes (this case uses the Bit-Flip algorithm for decoding) (LAB 2)
 class LDPCEncoderWithBitFlip:
     # Initialize LDPC Encoder with parameters
     # n: number of variable nodes (or codeword length)
@@ -351,7 +354,7 @@ class LDPCEncoderWithBitFlip:
         return decoded
 
 
-# Hamming Encoder class
+# Hamming Encoder class (LAB 1)
 class HammingEncoder:
     def __init__(self, n, k):
         self.n = n # length of codeword
@@ -426,7 +429,7 @@ class HammingEncoder:
         pass
 
 
-# Gaussian Channel class
+# Gaussian Channel class (LAB 2 - LAB 3)
 class GaussianChannel:
     # Initialize Gaussian Channel with parameters
     # Eb_N0_dB: Energy per bit to noise power spectral density ratio in dB
@@ -452,7 +455,7 @@ class GaussianChannel:
         return llr
 
 
-# BSC (Binary Symmetric Channel) class
+# BSC (Binary Symmetric Channel) class (LAB 1)
 class BSC:
     def __init__(self, p):
         self.p = p # probability of bit flip
@@ -513,6 +516,53 @@ def generateInformationBits(x):
     return np.zeros(x, dtype=int).reshape(1, x)
 
 
+
+def simulate_single0(args):
+    message, Eb_N0_dB, ldpc_encoder0, x0_info_bits, encoded_symbols0, n0, m0 = args
+
+    # Declaring the necessary variables to store the final message and error rates
+    error_rates0 = []
+
+    # Transmit each block through the channel for different values of p
+    print("\nTRANSMISSION THROUGH GAUSSIAN CHANNEL\n")
+
+    print("\n\tEb/N0 (dB) = ", Eb_N0_dB, "\n")
+    channel0 = GaussianChannel(Eb_N0_dB, ldpc_encoder0.Eb)
+
+    # Initialize the necessary np arrays to store the received symbols
+    received_symbols0 = np.empty((1, 0), dtype=int)
+    final_message0 = np.empty((1, 0), dtype=int)
+
+    # Case 0 - Transmit the encoded symbols 0 through the channel (all at once)
+    start_time = time.time()  # Start timing
+    received_symbols0 = channel0.transmit(encoded_symbols0)
+    end_time = time.time()    # End timing
+    transmission_time = end_time - start_time  # Calculate transmission time
+
+    received_llr0 = channel0.calculate_llr(received_symbols0)
+
+    # print("received_llr1.shape: ", received_llr1.shape)
+    print(received_llr0[0, :, :10])
+
+    # Decode the received blocks for each case
+    for j in range(0, encoded_symbols0.shape[0]):
+        decoded_message0 = ldpc_encoder0.decode(received_llr0[j, :, :])     # input has shape (1, n0), and output too (but now represent bits)
+        relevant_bits0 = decoded_message0[:, :n0-m0]
+        final_message0 = np.concatenate((final_message0, relevant_bits0), axis=1)
+
+    # print("\n\nfinal_message0.shape: ", final_message0.shape)
+    # print(final_message0[0, :10])
+
+    # Calculate the number of different bits
+    # Case 0
+    bit_errors0 = np.sum(message[0, :x0_info_bits] != final_message0[0,:])
+    error_rate0 = bit_errors0 / x0_info_bits
+    error_rates0.append(error_rate0)
+    print("Error rate0: ", error_rate0)
+
+    return error_rate0, transmission_time
+
+
 # Simulate and Compare methods for different values of Eb_N0_db using parallelism
 def simulate_single1(args):
     message, Eb_N0_dB, ldpc_encoder1, x1_info_bits, encoded_symbols1, n1, m1 = args
@@ -531,7 +581,11 @@ def simulate_single1(args):
     final_message1 = np.empty((1, 0), dtype=int)
 
     # Case 1 - Transmit the encoded symbols 1 through the channel (all at once)
+    start_time = time.time()  # Start timing
     received_symbols1 = channel1.transmit(encoded_symbols1)
+    end_time = time.time()    # End timing
+    transmission_time = end_time - start_time  # Calculate transmission
+
     received_llr1 = channel1.calculate_llr(received_symbols1)
 
     # print("received_llr1.shape: ", received_llr1.shape)
@@ -548,17 +602,17 @@ def simulate_single1(args):
     # print("\n\nfinal_message1.shape: ", final_message1.shape)
     # print(final_message1[0, :10])
 
-    # Calculate the number of different bits for each case
+    # Calculate the number of different bits
     # Case 1
     bit_errors1 = np.sum(message[0, :x1_info_bits] != final_message1[0,:])
     error_rate1 = bit_errors1 / x1_info_bits
     error_rates1.append(error_rate1)
     print("Error rate1: ", error_rate1)
 
-    return error_rate1
+    return error_rate1, transmission_time
 
 
-# Simulate and Compare methods for different values of p using parallelism
+# Simulate and Compare methods for different values of "p" using parallelism
 def simulate_single2(args):
     message, Eb_N0_dB, ldpc_encoder1, ldpc_encoder2, x2_info_bits, encoded_blocks2, n2, m2 = args
     
@@ -569,7 +623,8 @@ def simulate_single2(args):
     print("\nTRANSMISSION THROUGH GAUSSIAN CHANNEL (simulating BSC here!)\n")
 
     print("\n\tInstead \"p\", quivalent Eb/N0 (dB) = ", Eb_N0_dB, "\n")
-    channel1 = GaussianChannel(Eb_N0_dB, ldpc_encoder1.Eb)
+    Eb = ldpc_encoder1.Eb
+    channel1 = GaussianChannel(Eb_N0_dB, Eb)
     # channel2 = BSC(p)  # BSC channel... dont need here because we are simulating it with the gaussian channel!
 
     # Initialize the necessary np arrays to store the received symbols
@@ -578,7 +633,10 @@ def simulate_single2(args):
 
     # Case 2 - Transmit the encoded symbols 1 through the channel (all at once)
     encoded_symbols1 = ldpc_encoder1.encode_message_to_symbols(encoded_blocks2)
+    start_time = time.time()  # Start timing
     received_symbols1 = channel1.transmit(encoded_symbols1)
+    end_time = time.time()    # End timing
+    transmission_time = end_time - start_time  # Calculate transmission time
 
     # Converting received symbols to bits, because we are simulating a BSC (and its inputs are bits)
     # Deciding with a limiar on Zero (0) to convert to 0 or 1... rth = 0 here
@@ -596,10 +654,96 @@ def simulate_single2(args):
     error_rates2.append(error_rate2)
     print("Error rate2: ", error_rate2)
     
-    return error_rate2
+    return error_rate2, transmission_time
 
 
-# Simulate and Compare methods for different values of p using parallelism
+def simulate_single3(args):
+    message, Eb_N0_dB, ldpc_encoder1, hamming_encoder, x3_info_bits, encoded_blocks3, k3 = args
+
+    # Declaring the necessary variables to store the final message and error rates
+    error_rates3 = []
+
+    # Transmit each block through the BSC channel for different values of p
+    print("\nTRANSMISSION THROUGH GAUSSIAN CHANNEL (simulating BSC here!)\n")
+
+    print("\n\tInstead \"p\", quivalent Eb/N0 (dB) = ", Eb_N0_dB, "\n")
+    channel1 = GaussianChannel(Eb_N0_dB, ldpc_encoder1.Eb)
+    # channel2 = BSC(p)  # BSC channel... dont need here because we are simulating it with the gaussian channel!
+
+    # Initialize the necessary np arrays to store received symbols
+    received_symbols1 = np.empty((1, 0), dtype=int)
+    final_message3 = np.empty((1, 0), dtype=int)
+
+    # Case 3 - Transmit the encoded symbols 1 through the channel (all at once)
+    encoded_symbols1 = ldpc_encoder1.encode_message_to_symbols(encoded_blocks3)
+    start_time = time.time()  # Start timing
+    received_symbols1 = channel1.transmit(encoded_symbols1)
+    end_time = time.time()    # End timing
+    transmission_time = end_time - start_time  # Calculate transmission time
+
+    # Converting received symbols to bits, because we are simulating a BSC (and its inputs are bits)
+    # Deciding with a limiar on Zero (0) to convert to 0 or 1... rth = 0 here
+    received3 = np.where(received_symbols1 >= 0, 0, 1)  # BPSK modulation: +1 for 0 and -1 for 1
+    # print("received3.shape: ", received3.shape)
+    # print(received3[:10])
+
+    for j in range(0, len(encoded_blocks3)):
+        decoded3 = hamming_encoder.decode(received3[j, :, :])
+        relevant_bits3 = decoded3[:, :k3]
+        final_message3 = np.concatenate((final_message3, relevant_bits3), axis=1)
+
+    bit_errors3 = np.sum(message[0, :x3_info_bits] != final_message3[0,:])
+    error_rate3 = bit_errors3 / x3_info_bits
+    error_rates3.append(error_rate3)
+    print("Error rate3: ", error_rate3)
+
+    return error_rate3, transmission_time
+
+
+def simulate_single4(args):
+    message, Eb_N0_dB4, ldpc_encoder1, x4_info_bits, encoded_blocks4, k4 = args
+
+    # Declaring the necessary variables to store the final message and error rates
+    error_rates4 = []
+
+    # Transmit each block through the BSC channel for different values of p
+    print("\nTRANSMISSION THROUGH GAUSSIAN CHANNEL (simulating BSC here!)\n")
+
+    print("\n\tInstead \"p\", quivalent Eb/N0 (dB) = ", Eb_N0_dB4, "\n")
+    channel1 = GaussianChannel(Eb_N0_dB4, ldpc_encoder1.Eb)
+    # channel2 = BSC(p)  # BSC channel... dont need here because we are simulating it with the gaussian channel!
+
+    # Initialize the necessary np arrays to store received symbols
+    received_symbols1 = np.empty((1, 0), dtype=int)
+    final_ = np.empty((1, 0), dtype=int)
+
+    # Case 4 - Transmit the encoded symbols 1 through the channel (all at once)
+    encoded_symbols1 = ldpc_encoder1.encode_message_to_symbols(encoded_blocks4)
+    start_time = time.time()  # Start timing
+    received_symbols1 = channel1.transmit(encoded_symbols1)
+    end_time = time.time()    # End timing
+    transmission_time = end_time - start_time  # Calculate transmission time
+
+    # Converting received symbols to bits, because we are simulating a BSC (and its inputs are bits)
+    # Deciding with a limiar on Zero (0) to convert to 0 or 1... rth = 0 here
+    received4 = np.where(received_symbols1 >= 0, 0, 1)  # BPSK modulation: +1 for 0 and -1 for 1
+    # print("received4.shape: ", received4.shape)
+    # print(received4[:10])
+
+    for j in range(0, len(encoded_blocks4)):
+        decoded4 = received4[j, :, :]
+        relevant_bits4 = decoded4[:, :k4]
+        final_ = np.concatenate((final_, relevant_bits4), axis=1)
+
+    bit_errors4 = np.sum(message[0, :x4_info_bits] != final_[0,:])
+    error_rate4 = bit_errors4 / x4_info_bits
+    error_rates4.append(error_rate4)
+    print("Error rate4: ", error_rate4)
+
+    return error_rate4, transmission_time
+
+
+# Simulate and Compare methods for different values of Ei_N0_dBs using parallelism
 def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
     
     # Generate message with x_info_bits
@@ -607,10 +751,25 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
     print("message.shape: ", message.shape)
 
 
+    # CASE 0: LDPC with LLR algorithm and with n = 1001... should be better than the others!!!!
+    n0 = 1001               # codeword length (number of v-nodes)
+    m0 = n0 * 3 // 7        # number of check nodes (nuber of c-nodes)
+    k0 = n0 - m0            # number of information bits
+    Eb_N0_dBs0 = Ei_N0_dBs - 10 * np.log10(n0/k0)  # Conversão para Eb/N0
+    ldpc_encoder0 = LDPCEncoderWithLLR(n0, 3, 7, 100)   # n, dv, dc
+    # ldpc_encoder0.graph.display()
+    ldpc_encoder0.graph.save_to_csv("tanner_graph0.csv")
+    x0_info_bits = message.shape[1]-(message.shape[1] % (n0-m0))
+    encoded_blocks0 = ldpc_encoder0.encode([message[:, i:i+n0-m0] for i in range(0, x0_info_bits, n0-m0)])
+    encoded_symbols0 = ldpc_encoder0.encode_message_to_symbols(encoded_blocks0)
+    print("encoded_symbols0.shape: ", encoded_symbols0.shape)
+
+
     # CASE 1: LDPC with LLR algorithm and with n = 1001
     n1 = 1001               # codeword length (number of v-nodes)
     m1 = n1 * 3 // 7        # number of check nodes (nuber of c-nodes)
-    Eb_N0_dBs = Ei_N0_dBs - 10 * np.log10(10 / 7)  # Conversão para Eb/N0
+    k1 = n1 - m1            # number of information bits
+    Eb_N0_dBs1 = Ei_N0_dBs - 10 * np.log10(n1/k1)  # Conversão para Eb/N0
     ldpc_encoder1 = LDPCEncoderWithLLR(n1, 3, 7)   # n, dv, dc
     # ldpc_encoder1.graph.display()
     # ldpc_encoder1.graph.save_to_csv("tanner_graph1.csv")
@@ -621,9 +780,11 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
 
 
     # CASE 2: LDPC with bit-flip algorithm with n = 1001
-    n2 = 1001
-    m2 = n2 * 3 // 7
+    n2 = 1001               # codeword length (number of v-nodes)
+    m2 = n2 * 3 // 7        # number of check nodes (nuber of c-nodes)
+    k2 = n2 - m2            # number of information bits
     #p = something -- Would be the probability of bit flip... but we are going to use the gaussian channel, because it would be the same as using BSC with the correct p for each Eb_N0_dB... it is easier to use the gaussian channel
+    Eb_N0_dBs2 = Ei_N0_dBs - 10 * np.log10(n2/k2)
     ldpc_encoder2 = LDPCEncoderWithBitFlip(n2, 3, 7)
     # ldpc_encoder2.graph.display()
     x2_info_bits = message.shape[1]-(message.shape[1] % (n2-m2))
@@ -635,35 +796,108 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
     # Parameters
     n3 = 7 # length of codeword
     k3 = 4 # length of message
+    Eb_N0_dBs3 = Ei_N0_dBs - 10 * np.log10(n3/k3)
     hamming_encoder = HammingEncoder(n3, k3)
+    x3_info_bits = message.shape[1]-(message.shape[1] % k3)
     encoded_blocks3 = hamming_encoder.encode([message[:, i:i+k3] for i in range(0, message.shape[1], k3)])
+    print("encoded_blocks3.shape: ", encoded_blocks3.shape)
 
+
+    # CASE 4: No treatment case
+    n4 = k4 = 1000
+    Eb_N0_dBs4 = Ei_N0_dBs - 10 * np.log10(n4/k4)
+    x4_info_bits = message.shape[1]-(message.shape[1] % k4)
+    # encoded_blocks4 = hamming_encoder.encode([message[:, i:i+k4] for i in range(0, message.shape[1], k4)])  # Using the Hamming Encoder just to get the correct format for the blocks
+    encoded_blocks4 = message[:, :x4_info_bits].reshape(x4_info_bits // n4, 1, n4)
+    print("encoded_blocks4.shape: ", encoded_blocks4.shape)
+
+
+
+
+    # SIMULATE CASE 0
+    with Pool(process_count) as pool:
+        # Create a partial function that all processes can use
+        results = pool.map(simulate_single0, [(message, Eb_N0_dB0, ldpc_encoder0, x0_info_bits, encoded_symbols0, n0, m0) for Eb_N0_dB0 in Eb_N0_dBs0])
+
+    error_rates0 = [result[0] for result in results]   # here assuming only one result per process
+    transmission_times0 = [result[1] for result in results]   # here assuming only one result per process
+    transmission_time0 = np.mean(transmission_times0)
+    transmission_rate0 = (x0_info_bits * (n0 / k0)) / transmission_time0
 
     # SIMULATE CASE 1
     # Create a pool of processes (parallelism)
     with Pool(process_count) as pool:
         # Create a partial function that all processes can use
-        results = pool.map(simulate_single1, [(message, Eb_N0_dB, ldpc_encoder1, x1_info_bits, encoded_symbols1, n1, m1) for Eb_N0_dB in Eb_N0_dBs])
+        results = pool.map(simulate_single1, [(message, Eb_N0_dB1, ldpc_encoder1, x1_info_bits, encoded_symbols1, n1, m1) for Eb_N0_dB1 in Eb_N0_dBs1])
     
-    error_rates1 = [result for result in results]   # here assuming only one result per process
-
+    error_rates1 = [result[0] for result in results]   # here assuming only one result per process
+    transmission_times1 = [result[1] for result in results]   # here assuming only one result per process
+    transmission_time1 = np.mean(transmission_times1)
+    transmission_rate1 = (x1_info_bits * (n1 / k1)) / transmission_time1
 
     # SIMULATE CASE 2
     with Pool(process_count) as pool:
         # Create a partial function that all processes can use
-        results = pool.map(simulate_single2, [(message, Eb_N0_dB, ldpc_encoder1, ldpc_encoder2, x2_info_bits, encoded_blocks2, n2, m2) for Eb_N0_dB in Eb_N0_dBs])
+        results = pool.map(simulate_single2, [(message, Eb_N0_dB2, ldpc_encoder1, ldpc_encoder2, x2_info_bits, encoded_blocks2, n2, m2) for Eb_N0_dB2 in Eb_N0_dBs2])
 
-    error_rates2 = [result for result in results]   # here assuming only one result per process
+    error_rates2 = [result[0] for result in results]   # here assuming only one result per process
+    transmission_times2 = [result[1] for result in results]   # here assuming only one result per process
+    transmission_time2 = np.mean(transmission_times2)
+    transmission_rate2 = (x2_info_bits * (n2 / k2)) / transmission_time2
 
+    # SIMULATE CASE 3
+    with Pool(process_count) as pool:
+        # Create a partial function that all processes can use
+        results = pool.map(simulate_single3, [(message, Eb_N0_dB3, ldpc_encoder1, hamming_encoder, x3_info_bits, encoded_blocks3, k3) for Eb_N0_dB3 in Eb_N0_dBs3])
+
+    error_rates3 = [result[0] for result in results]   # here assuming only one result per process
+    transmission_times3 = [result[1] for result in results]   # here assuming only one result per process
+    transmission_time3 = np.mean(transmission_times3)
+    transmission_rate3 = (x3_info_bits * (n3 / k3)) / transmission_time3
+
+    # SIMULATE CASE 4
+    with Pool(process_count) as pool:
+        # Create a partial function that all processes can use
+        results = pool.map(simulate_single4, [(message, Eb_N0_dB4, ldpc_encoder1, x4_info_bits, encoded_blocks4, k4) for Eb_N0_dB4 in Eb_N0_dBs4])
+
+    error_rates4 = [result[0] for result in results]   # here assuming only one result per process
+    transmission_times4 = [result[1] for result in results]   # here assuming only one result per process
+    transmission_time4 = np.mean(transmission_times4)
+    transmission_rate4 = (x4_info_bits * (n4 / k4)) / transmission_time4
+
+    # Print the transmission rate for each case
+    print("\nTransmission Rate0: ", transmission_rate0*1e-6, "Mbps")
+    print("\nTransmission Rate1: ", transmission_rate1*1e-6, "Mbps")
+    print("\nTransmission Rate2: ", transmission_rate2*1e-6, "Mbps")
+    print("\nTransmission Rate3: ", transmission_rate3*1e-6, "Mbps")
+    print("\nTransmission Rate4: ", transmission_rate4*1e-6, "Mbps")
+
+    # Print the error rates for each case
+    print("\n error_rates0: ", error_rates1)
+    print("\n error_rates1: ", error_rates1)
+    print("\n error_rates2: ", error_rates2)
+    print("\n error_rates3: ", error_rates3)
+    print("\n error_rates4: ", error_rates4)
 
 
     # Plot the error rates
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(15, 9))
 
-    plt.plot(Ei_N0_dBs, error_rates1, 'g-o', label='LDPC Code (n = 1001) - LLR ')
-    plt.plot(Ei_N0_dBs, error_rates2, 'm-o', label='LDPC Code (n = 1001) - Bit Flip ')
-    plt.scatter(Ei_N0_dBs, error_rates1, color='red')  # mark each point
-    plt.scatter(Ei_N0_dBs, error_rates2, color='blue')  # Mark each point for Case 2
+    # plt.plot(Ei_N0_dBs, error_rates0, 'c-o', label=f'LDPC Code (n = {n0}, k = {k0}) - LLR - {transmission_rate0*1e-6:.2f} Mbps')
+    # plt.plot(Ei_N0_dBs, error_rates1, 'g-o', label=f'LDPC Code (n = {n1}, k = {k1}) - LLR - {transmission_rate1*1e-6:.2f} Mbps')
+    # plt.plot(Ei_N0_dBs, error_rates2, 'm-o', label=f'LDPC Code (n = {n2}, k = {k2}) - Bit Flip - {transmission_rate2*1e-6:.2f} Mbps')
+    # plt.plot(Ei_N0_dBs, error_rates3, 'r-o', label=f'Hamming Code (n = {n3}, k = {k3}) - {transmission_rate3*1e-6:.2f} Mbps')
+    # plt.plot(Ei_N0_dBs, error_rates4, 'b-o', label=f'No Treatment (n = {n4}, k = {k4}) - {transmission_rate4*1e-6:.2f} Mbps')
+    plt.plot(Ei_N0_dBs, error_rates0, 'c-o', label=f'LDPC Code (n = {n0}, k = {k0}) - LLR')
+    plt.plot(Ei_N0_dBs, error_rates1, 'g-o', label=f'LDPC Code (n = {n1}, k = {k1}) - LLR')
+    plt.plot(Ei_N0_dBs, error_rates2, 'm-o', label=f'LDPC Code (n = {n2}, k = {k2}) - Bit Flip')
+    plt.plot(Ei_N0_dBs, error_rates3, 'r-o', label=f'Hamming Code (n = {n3}, k = {k3})')
+    plt.plot(Ei_N0_dBs, error_rates4, 'b-o', label=f'No Treatment (n = {n4}, k = {k4})')
+    plt.scatter(Ei_N0_dBs, error_rates0, color='cyan')      # Mark each point for Case 0
+    plt.scatter(Ei_N0_dBs, error_rates1, color='green')     # mark each point for Case 1
+    plt.scatter(Ei_N0_dBs, error_rates2, color='magenta')   # Mark each point for Case 2
+    plt.scatter(Ei_N0_dBs, error_rates3, color='red')       # Mark each point for Case 3
+    plt.scatter(Ei_N0_dBs, error_rates4, color='blue')      # Mark each point for Case 4
 
     plt.xlabel('Ei/N0 (dB)')
     plt.ylabel('Error Rate')
@@ -683,7 +917,7 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
 
 
 def main():
-    simulate_parallel(x_info_bits=100000, Ei_N0_dBs=[0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6.0, 6.5, 7.0], process_count=8)
+    simulate_parallel(x_info_bits=50000, Ei_N0_dBs=[0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6.0, 6.5, 7.0, 7.5, 8, 8.5, 9, 9.5], process_count=8)
 
 
 if __name__ == "__main__":
