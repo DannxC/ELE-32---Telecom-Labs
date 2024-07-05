@@ -752,11 +752,13 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
 
 
     # CASE 0: LDPC with LLR algorithm and with n = 1001... should be better than the others!!!!
-    n0 = 1001               # codeword length (number of v-nodes)
-    m0 = n0 * 3 // 7        # number of check nodes (nuber of c-nodes)
-    k0 = n0 - m0            # number of information bits
+    n0 = 1002                   # codeword length (number of v-nodes)
+    dv0 = 3                     # number of edges on v-nodes
+    dc0 = 6                     # number of edges on c-nodes
+    m0 = n0 * dv0 // dc0        # number of check nodes (nuber of c-nodes)
+    k0 = n0 - m0                # number of information bits
     Eb_N0_dBs0 = Ei_N0_dBs - 10 * np.log10(n0/k0)  # Conversão para Eb/N0
-    ldpc_encoder0 = LDPCEncoderWithLLR(n0, 3, 7, 100)   # n, dv, dc
+    ldpc_encoder0 = LDPCEncoderWithLLR(n0, dv0, dc0, 20)   # n, dv, dc, max_iteractions (it is optional)
     # ldpc_encoder0.graph.display()
     ldpc_encoder0.graph.save_to_csv("tanner_graph0.csv")
     x0_info_bits = message.shape[1]-(message.shape[1] % (n0-m0))
@@ -766,11 +768,13 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
 
 
     # CASE 1: LDPC with LLR algorithm and with n = 1001
-    n1 = 1001               # codeword length (number of v-nodes)
-    m1 = n1 * 3 // 7        # number of check nodes (nuber of c-nodes)
-    k1 = n1 - m1            # number of information bits
+    n1 = 1001                   # codeword length (number of v-nodes)
+    dv1 = 3                     # number of edges on v-nodes
+    dc1 = 7                     # number of edges on c-nodes
+    m1 = n1 * dv1 // dc1        # number of check nodes (nuber of c-nodes)
+    k1 = n1 - m1                # number of information bits
     Eb_N0_dBs1 = Ei_N0_dBs - 10 * np.log10(n1/k1)  # Conversão para Eb/N0
-    ldpc_encoder1 = LDPCEncoderWithLLR(n1, 3, 7)   # n, dv, dc
+    ldpc_encoder1 = LDPCEncoderWithLLR(n1, dv1, dc1, 20)   # n, dv, dc
     # ldpc_encoder1.graph.display()
     # ldpc_encoder1.graph.save_to_csv("tanner_graph1.csv")
     x1_info_bits = message.shape[1]-(message.shape[1] % (n1-m1))
@@ -780,12 +784,14 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
 
 
     # CASE 2: LDPC with bit-flip algorithm with n = 1001
-    n2 = 1001               # codeword length (number of v-nodes)
-    m2 = n2 * 3 // 7        # number of check nodes (nuber of c-nodes)
-    k2 = n2 - m2            # number of information bits
+    n2 = 1001                   # codeword length (number of v-nodes)
+    dv2 = 3                     # number of edges on v-nodes
+    dc2 = 7                     # number of edges on c-nodes
+    m2 = n2 * dv2 // dc2            # number of check nodes (nuber of c-nodes)
+    k2 = n2 - m2                # number of information bits
     #p = something -- Would be the probability of bit flip... but we are going to use the gaussian channel, because it would be the same as using BSC with the correct p for each Eb_N0_dB... it is easier to use the gaussian channel
     Eb_N0_dBs2 = Ei_N0_dBs - 10 * np.log10(n2/k2)
-    ldpc_encoder2 = LDPCEncoderWithBitFlip(n2, 3, 7)
+    ldpc_encoder2 = LDPCEncoderWithBitFlip(n2, dv2, dc2)
     # ldpc_encoder2.graph.display()
     x2_info_bits = message.shape[1]-(message.shape[1] % (n2-m2))
     encoded_blocks2 = ldpc_encoder2.encode([message[:, i:i+n2-m2] for i in range(0, x2_info_bits, n2-m2)])
@@ -888,8 +894,8 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
     # plt.plot(Ei_N0_dBs, error_rates2, 'm-o', label=f'LDPC Code (n = {n2}, k = {k2}) - Bit Flip - {transmission_rate2*1e-6:.2f} Mbps')
     # plt.plot(Ei_N0_dBs, error_rates3, 'r-o', label=f'Hamming Code (n = {n3}, k = {k3}) - {transmission_rate3*1e-6:.2f} Mbps')
     # plt.plot(Ei_N0_dBs, error_rates4, 'b-o', label=f'No Treatment (n = {n4}, k = {k4}) - {transmission_rate4*1e-6:.2f} Mbps')
-    plt.plot(Ei_N0_dBs, error_rates0, 'c-o', label=f'LDPC Code (n = {n0}, k = {k0}) - LLR')
-    plt.plot(Ei_N0_dBs, error_rates1, 'g-o', label=f'LDPC Code (n = {n1}, k = {k1}) - LLR')
+    plt.plot(Ei_N0_dBs, error_rates0, 'c-o', label=f'LDPC Code (n = {n0}, k = {k0}, dv = {dv0}, dc = {dc0}) - LLR')
+    plt.plot(Ei_N0_dBs, error_rates1, 'g-o', label=f'LDPC Code (n = {n1}, k = {k1}, dv = {dv1}, dc = {dc1}) - LLR')
     plt.plot(Ei_N0_dBs, error_rates2, 'm-o', label=f'LDPC Code (n = {n2}, k = {k2}) - Bit Flip')
     plt.plot(Ei_N0_dBs, error_rates3, 'r-o', label=f'Hamming Code (n = {n3}, k = {k3})')
     plt.plot(Ei_N0_dBs, error_rates4, 'b-o', label=f'No Treatment (n = {n4}, k = {k4})')
@@ -906,9 +912,9 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
     plt.xticks(Ei_N0_dBs, labels=[f"{x:.2f}" for x in Ei_N0_dBs])
     plt.xlim(min(Ei_N0_dBs), max(Ei_N0_dBs))
     plt.yscale('log')
-    plt.yticks([1e0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6], labels=['1e0', '1e-1', '1e-2', '1e-3', '1e-4', '1e-5', '1e-6'])
-    plt.ylim(1e-6, 1e0)
-    
+    plt.yticks([1e0, 1e-1, 1e-2, 1e-3, 1e-4], labels=['1e0', '1e-1', '1e-2', '1e-3', '1e-4'])
+    # plt.ylim(1e-6, 1e0)
+    plt.ylim(1e-4, 1e0)
     plt.legend(title="Legend", title_fontsize='13', fontsize='11')  # Add a title to the legend for clarity
     plt.grid(True)
 
@@ -917,7 +923,7 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
 
 
 def main():
-    simulate_parallel(x_info_bits=50000, Ei_N0_dBs=[0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6.0, 6.5, 7.0, 7.5, 8, 8.5, 9, 9.5], process_count=8)
+    simulate_parallel(x_info_bits=1000000, Ei_N0_dBs=[0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6.0, 6.5, 7.0, 7.5, 8, 8.5, 9, 9.5], process_count=8)
 
 
 if __name__ == "__main__":
