@@ -871,6 +871,9 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
     transmission_time4 = np.mean(transmission_times4)
     transmission_rate4 = (x4_info_bits * (n4 / k4)) / transmission_time4
 
+
+
+
     # Print the transmission rate for each case
     print("\nTransmission Rate0: ", transmission_rate0*1e-6, "Mbps")
     print("\nTransmission Rate1: ", transmission_rate1*1e-6, "Mbps")
@@ -884,6 +887,8 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
     print("\n error_rates2: ", error_rates2)
     print("\n error_rates3: ", error_rates3)
     print("\n error_rates4: ", error_rates4)
+
+
 
 
     # Plot the error rates
@@ -912,7 +917,7 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
     plt.xticks(Ei_N0_dBs, labels=[f"{x:.2f}" for x in Ei_N0_dBs])
     plt.xlim(min(Ei_N0_dBs), max(Ei_N0_dBs))
     plt.yscale('log')
-    plt.yticks([1e0, 1e-1, 1e-2, 1e-3, 1e-4], labels=['1e0', '1e-1', '1e-2', '1e-3', '1e-4'])
+    plt.yticks([1e0, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6], labels=['1e0', '1e-1', '1e-2', '1e-3', '1e-4', '1e-5', '1e-6'])
     # plt.ylim(1e-6, 1e0)
     plt.ylim(1e-4, 1e0)
     plt.legend(title="Legend", title_fontsize='13', fontsize='11')  # Add a title to the legend for clarity
@@ -923,7 +928,7 @@ def simulate_parallel(x_info_bits, Ei_N0_dBs, process_count):
 
 
 def main():
-    simulate_parallel(x_info_bits=1000000, Ei_N0_dBs=[0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6.0, 6.5, 7.0, 7.5, 8, 8.5, 9, 9.5], process_count=8)
+    simulate_parallel(x_info_bits=1000000, Ei_N0_dBs=[0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6.0, 6.5, 7.0, 7.5, 8, 8.5, 9], process_count=8)
 
 
 if __name__ == "__main__":

@@ -153,6 +153,7 @@ class LDPCEncoder:
                     self.graph.att_edge_value(v_node, edge[0], sum_incoming - edge[1])
 
 
+
             # Verify Grey's condition for each c-node
             stop_algorithm = True
             for c_node in range(self.n, self.n + self.m):
@@ -169,6 +170,7 @@ class LDPCEncoder:
 
             if stop_algorithm:
                 break   # Stop the algorithm if Grey's condition is satisfied
+
 
 
             # Calculate c-nodes
@@ -322,7 +324,7 @@ def simulate(x_info_bits, Eb_N0_dBs):
     print("\nTRANSMISSION THROUGH GAUSSIAN CHANNEL\n")
     for i in range(0, len(Eb_N0_dBs)):
         print("\n\tEb/N0 (dB) = ", Eb_N0_dBs[i], "\n")
-        channel1 = GaussianChannel(Eb_N0_dBs[i], ldpc_encoder1.Eb)
+        channel1 = GaussianChannel(Eb_N0_dBs[i], ldpc_encoder1.Eb) # Eb = 1
 
         # Initialize the necessary np arrays to store the received symbols
         received_symbols1 = np.empty((1, 0), dtype=int)
